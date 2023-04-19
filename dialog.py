@@ -1,4 +1,5 @@
 import json
+import requests
 import openai
 
 # 対話制御クラス
@@ -30,8 +31,9 @@ class Dialog:
         prompt.append({"role": "user", "content":content})
         result = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=prompt
+            messages=prompt,
         )
+        print("result: ", result)
         return result.choices[0].message.content
     
     # 対話を実行する関数
@@ -46,11 +48,45 @@ class Dialog:
             system_output = self.system_generation(user_utt)
             print("system: ", system_output)
 
+    def request_stream_api(self, content):
+        # APIエンドポイント
+        url = "https://api.openai.com/v1/chat/completions"
+        # リクエストデータ
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": content}],
+            "temperature": 0.7,
+            "stream": True
+        }
+
+        # リクエストヘッダー
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        # リクエスト送信
+        response = requests.post(url, json=data, headers=headers, stream=True)
+        # レスポンス出力
+        # ストリーミングデータを受信
+        for line in response.iter_lines():
+            if line:
+                data = line.decode('utf-8')
+             
+                try:
+                    data = json.loads(data.replace('data:', ''))
+                    s = data["choices"][0]["delta"]["content"]
+                    print(s)
+                except (KeyError, json.decoder.JSONDecodeError):
+                    continue
+                if data == '[DONE]':
+                    break
+
 
 # 実行プログラム
 if __name__ == "__main__":
     user_continuation_instruction = "以下の発話の続きを考えてください。"
     system_generation_instruction = "以下の対話に対する応答を考えてください。"
     dialog = Dialog(user_continuation_instruction, system_generation_instruction)
-    dialog.run()
+    dialog.request_stream_api("面白い話をしてくだちゃい。")
+    # dialog.run()
     
